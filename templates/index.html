@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>System & Process Monitor</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #f5f5f5;
+    }
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1e1e2f;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+    }
+    .sidebar button {
+      margin-bottom: 15px;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #333;
+      color: white;
+      font-size: 16px;
+      text-align: left;
+      transition: background 0.3s;
+    }
+    .sidebar button.active {
+      background: #e63946;
+    }
+    .sidebar button:hover {
+      background: #444;
+    }
+    /* Main content */
+    .content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background: #f2f2f2;
+    }
+    /* Search bar */
+    .search-bar {
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .search-bar input {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      width: 250px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <button id="systemBtn" class="active">System Details</button>
+    <button id="processBtn">Processes Details</button>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content" id="content">
+    <h2>System Details</h2>
+    <div id="system-details">Loading...</div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000/api"; // Django API base
+
+    const systemBtn = document.getElementById("systemBtn");
+    const processBtn = document.getElementById("processBtn");
+    const content = document.getElementById("content");
+
+    let processesData = []; // cache process data for searching
+
+    // Load System Info
+    function loadSystemInfo() {
+      systemBtn.classList.add("active");
+      processBtn.classList.remove("active");
+      content.innerHTML = "<h2>System Details</h2><div id='system-details'>Loading...</div>";
+
+      fetch(`${API_BASE}/systeminfo/`)
+        .then(res => res.json())
+        .then(data => {
+          const sys = data[0]; // latest system info
+          document.getElementById("system-details").innerHTML = `
+            <table>
+              <tr><th>Hostname</th><td>${sys.hostname}</td></tr>
+              <tr><th>OS</th><td>${sys.os}</td></tr>
+              <tr><th>OS Version</th><td>${sys.os_version}</td></tr>
+              <tr><th>CPU Count</th><td>${sys.cpu_count}</td></tr>
+              <tr><th>Total Memory (GB)</th><td>${sys.total_memory}</td></tr>
+              <tr><th>Available Memory (GB)</th><td>${sys.available_memory}</td></tr>
+              <tr><th>Disk Usage (GB)</th><td>${sys.disk_usage}</td></tr>
+              <tr><th>Created At</th><td>${sys.created_at}</td></tr>
+            </table>
+          `;
+        })
+        .catch(err => {
+          document.getElementById("system-details").innerText = "Error loading system details!";
+          console.error(err);
+        });
+    }
+
+    // Render Process Table
+    function renderProcessTable(data) {
+      let table = `
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Search process by name or PID...">
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Memory Usage (MB)</th>
+              <th>CPU Usage (%)</th>
+              <th>PPID</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      data.forEach(p => {
+        table += `
+          <tr>
+            <td>${p.name}</td>
+            <td>${p.memory_usage}</td>
+            <td>${p.cpu_usage}</td>
+            <td>${p.ppid}</td>
+            <td>${p.created_at}</td>
+          </tr>
+        `;
+      });
+      table += "</tbody></table>";
+      document.getElementById("process-details").innerHTML = table;
+
+      // search filter logic
+      document.getElementById("searchInput").addEventListener("input", function() {
+        const query = this.value.toLowerCase();
+        const filtered = processesData.filter(p => 
+          p.name.toLowerCase().includes(query) || String(p.ppid).includes(query)
+        );
+        renderProcessTable(filtered); // re-render with filtered results
+      });
+    }
+
+    // Load Process Info
+    function loadProcessInfo() {
+      processBtn.classList.add("active");
+      systemBtn.classList.remove("active");
+      content.innerHTML = "<h2>Processes Details</h2><div id='process-details'>Loading...</div>";
+
+      fetch(`${API_BASE}/processinfo/`)
+        .then(res => res.json())
+        .then(data => {
+          processesData = data; // cache all processes
+          renderProcessTable(processesData);
+        })
+        .catch(err => {
+          document.getElementById("process-details").innerText = "Error loading process details!";
+          console.error(err);
+        });
+    }
+
+    
+    // Event listeners
+    systemBtn.addEventListener("click", loadSystemInfo);
+    processBtn.addEventListener("click", loadProcessInfo);
+
+    // Load system info by default
+    loadSystemInfo();
+  </script>
+
+</body>
+</html>
